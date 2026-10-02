@@ -2,6 +2,10 @@
 
 All notable changes to this project are documented here. Versions follow [Calendar Versioning](https://calver.org/): `vYY.MM.DD.N`.
 
+## [v26.10.02.2] - 2026-10-02
+
+- Brand icon for the integration (shown in HACS and in Home Assistant's integration list).
+
 ## [v26.10.02.1] - 2026-10-02
 
 First public release, extracted from a private Home Assistant setup where it ran in production.

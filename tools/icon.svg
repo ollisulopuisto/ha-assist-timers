@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+  <!-- Assist Timers brand icon: a stopwatch whose dial is a timer gauge. Render with tools/brand.sh. -->
+  <rect x="100" y="8" width="56" height="24" rx="10" fill="#03a9f4"/>
+  <rect x="119" y="26" width="18" height="26" fill="#03a9f4"/>
+  <circle cx="128" cy="148" r="92" fill="none" stroke="#03a9f4" stroke-opacity="0.28" stroke-width="24"/>
+  <path d="M128 56 A92 92 0 1 1 36 148" fill="none" stroke="#03a9f4" stroke-width="24" stroke-linecap="round"/>
+  <line x1="128" y1="148" x2="128" y2="94" stroke="#03a9f4" stroke-width="16" stroke-linecap="round"/>
+  <circle cx="128" cy="148" r="13" fill="#03a9f4"/>
+</svg>
