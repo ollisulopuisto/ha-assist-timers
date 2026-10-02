@@ -1,0 +1,17 @@
+stop:
+  target:
+    entity:
+      integration: esphome
+      domain: media_player
+pause:
+  fields:
+    timer_id:
+      required: true
+      selector:
+        text:
+unpause:
+  fields:
+    timer_id:
+      required: true
+      selector:
+        text:

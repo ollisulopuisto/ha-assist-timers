@@ -1,0 +1,221 @@
+# Lovelace raw card YAML, gauge variant of timer-list.yaml. Requires custom:button-card v6+
+# and assist_timers.yaml. One half-circle gauge per Assist timer (like HA's gauge card,
+# which cannot show mm:ss): time left in the middle, name and room below.
+# Finished timers show a full green gauge until dismissed on the satellite.
+type: custom:button-card
+entity: sensor.assist_timers
+triggers_update: all
+update_timer: 1000
+show_icon: false
+show_name: false
+show_state: false
+# Runs the action of the timer / tile / chip that was pressed (see the template).
+tap_action:
+  action: javascript
+  javascript: |
+    [[[ this.__assistTimerAct?.(); ]]]
+styles:
+  card:
+    - padding: 12px 16px
+  grid:
+    - grid-template-areas: '"timers"'
+    - grid-template-columns: 1fr
+    - grid-template-rows: auto
+  custom_fields:
+    timers:
+      - justify-self: stretch
+      - width: 100%
+custom_fields:
+  timers: >
+    [[[
+      const htmlEscapes = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
+      const esc = (s) => String(s).replace(/[&<>"']/g, (c) => htmlEscapes[c]);
+      // UI language from Home Assistant; English for anything without a translation.
+      const I18N = {
+        en: { unavailable: 'Voice timers unavailable', stale: 'Voice timers: stale data', set: 'Set a timer',
+              newTitle: 'New', newSub: 'timer', newRow: 'New timer', done: 'Done', dismiss: 'tap to dismiss',
+              paused: 'paused', timer: 'Timer', minutes: 'Minutes', seconds: 'Seconds', satellite: 'Satellite',
+              name: 'Name', cancel: 'Cancel', ok: 'Set' },
+        fi: { unavailable: 'Puheajastimet: tila ei saatavilla', stale: 'Puheajastimet: vanhentunut tieto',
+              set: 'Aseta ajastin', newTitle: 'Uusi', newSub: 'ajastin', newRow: 'Uusi ajastin', done: 'Valmis',
+              dismiss: 'napauta kuitataksesi', paused: 'tauolla', timer: 'Ajastin', minutes: 'Minuutit',
+              seconds: 'Sekunnit', satellite: 'Satelliitti', name: 'Nimi', cancel: 'Peruuta', ok: 'Aseta' },
+      };
+      const tr = (hs) => I18N[String(hs?.locale?.language || hs?.language || 'en').split('-')[0]] || I18N.en;
+      const T = tr(hass);
+
+      // Clicks: every timer, tile and chip says what it does in data-action. button-card
+      // runs this template with `this` = the card element. It handles the click itself
+      // (its own tap detection, also on touch screens) and does not let it through, so the
+      // pressed item is remembered on pointerdown and tap_action calls __assistTimerAct.
+      const card = this;
+      if (card?.shadowRoot && !card.__assistTimerPress) {
+        card.__assistTimerPress = true;
+        card.shadowRoot.addEventListener('pointerdown', (ev) => {
+          card.__assistTimerPressed = ev.composedPath().find((n) => n?.dataset?.action)?.dataset || null;
+        }, true);
+      }
+      if (card) card.__assistTimerAct = () => {
+          const pressed = card.__assistTimerPressed;
+          card.__assistTimerPressed = null;
+          if (!pressed) return;
+          const h = card._hass;
+          const L = tr(h);
+          const { action, timerId, minutes } = pressed;
+          const fields = h?.services?.script?.assist_timer_start?.fields || {};
+          // Form for a new timer: a browser_mod popup that closes once the timer is set;
+          // without browser_mod, the script's own form.
+          const ask = (preset) => {
+            const content = [
+              { name: 'minutes', label: L.minutes, default: preset ?? 5,
+                selector: { number: { min: 0, max: 600, mode: 'box', unit_of_measurement: 'min' } } },
+              { name: 'seconds', label: L.seconds, default: 0,
+                selector: { number: { min: 0, max: 59, mode: 'box', unit_of_measurement: 's' } } },
+              { name: 'satellite', label: L.satellite, default: fields.satellite?.default,
+                selector: fields.satellite?.selector || { device: {} } },
+              { name: 'name', label: L.name, selector: { text: {} } },
+            ];
+            if (window.browser_mod?.showPopup) {
+              window.browser_mod.showPopup({
+                title: L.set, content, left_button: L.cancel, right_button: L.ok,
+                right_button_action: (form) => h.callService('script', 'assist_timer_start', form),
+              });
+            } else {
+              document.querySelector('home-assistant')?.dispatchEvent(new CustomEvent('hass-more-info', {
+                bubbles: true, composed: true, detail: { entityId: 'script.assist_timer_start' },
+              }));
+            }
+          };
+          if (action === 'dismiss') h.callService('script', 'assist_timers_dismiss', {});
+          else if (action === 'pause' || action === 'unpause') h.callService('assist_timer_ring', action, { timer_id: timerId });
+          else if (action === 'quick') {
+            const satellite = fields.satellite?.default;
+            if (satellite) h.callService('script', 'assist_timer_start', { minutes: Number(minutes), satellite });
+            else ask(Number(minutes));
+          } else if (action === 'new') ask();
+      };
+      const css = `<style>
+        .gauges { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 12px 8px;
+          font-family: var(--ha-font-family-body, inherit); }
+        .gauge { display: flex; flex-direction: column; align-items: center; min-width: 0; cursor: pointer; }
+        .track.dashed { stroke-dasharray: 3 4; stroke-linecap: butt; stroke-width: 4; }
+        .plus { fill: var(--primary-color); font-size: 30px; font-weight: 300; }
+        .gauge.add .title, .gauge.add .sub { color: var(--secondary-text-color); }
+        .gauge svg { width: 100%; max-width: 150px; overflow: visible; }
+        .track { fill: none; stroke: var(--divider-color, rgba(127,127,127,0.25)); stroke-width: 10; stroke-linecap: round; }
+        .arc { fill: none; stroke: var(--accent); stroke-width: 10; stroke-linecap: round;
+          transition: stroke-dasharray 1s linear; }
+        .time { fill: var(--accent); font-size: 21px; font-weight: 500; font-variant-numeric: tabular-nums; }
+        .title { font-size: 14px; font-weight: 500; color: var(--primary-text-color); margin-top: 2px;
+          max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .sub { font-size: 12px; color: var(--secondary-text-color);
+          max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .gauge[data-state="running"] { --accent: var(--primary-color); }
+        .gauge[data-state="ending"] { --accent: var(--warning-color, #ff9800); }
+        .gauge[data-state="paused"] { --accent: var(--secondary-text-color); }
+        .gauge[data-state="paused"] .time { opacity: 0.7; }
+        .gauge[data-state="done"] { --accent: var(--success-color, #4caf50); }
+        .gauge[data-state="done"] .time { animation: blink 1.2s ease-in-out infinite; }
+        @keyframes blink { 50% { opacity: 0.45; } }
+        .note { display: flex; align-items: center; gap: 10px; color: var(--secondary-text-color); font-size: 15px; }
+        .note ha-icon { --mdc-icon-size: 20px; opacity: 0.7; }
+        .idle { display: flex; align-items: center; justify-content: space-between; gap: 10px 12px; flex-wrap: wrap;
+          text-align: left;
+          font-family: var(--ha-font-family-body, inherit); }
+        .idle-main { display: flex; align-items: center; gap: 12px; cursor: pointer; min-width: 0; }
+        .ibubble { width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; flex: none;
+          color: var(--primary-color); background: color-mix(in srgb, var(--primary-color) 18%, transparent); }
+        .ibubble ha-icon { --mdc-icon-size: 22px; }
+        .ititle { font-size: 15px; font-weight: 500; color: var(--primary-text-color); }
+        .chips { display: flex; gap: 6px; }
+        .chip { padding: 6px 12px; border-radius: 16px; font-size: 13px; font-weight: 500; cursor: pointer;
+          color: var(--primary-color); background: color-mix(in srgb, var(--primary-color) 14%, transparent); }
+      </style>`;
+      const note = (icon, msg) => `${css}<div class="note"><ha-icon icon="${icon}"></ha-icon>${esc(msg)}</div>`;
+      const idle = () => `${css}<div class="idle">
+        <div class="idle-main" data-action="new">
+          <div class="ibubble"><ha-icon icon="mdi:timer-plus-outline"></ha-icon></div>
+          <div class="ititle">${esc(T.set)}</div>
+        </div>
+        <div class="chips">${[1, 5, 10].map((m) => `<div class="chip" data-action="quick" data-minutes="${m}">${m} min</div>`).join('')}</div>
+      </div>`;
+
+      const timers = entity?.attributes?.timers;
+      if (!entity || entity.state === 'unavailable' || entity.state === 'unknown' || !Array.isArray(timers)) {
+        return note('mdi:timer-alert-outline', T.unavailable);
+      }
+      // Tablet and HA clocks can differ by seconds. When a new poll arrives, the
+      // gap between the tablet's clock and HA's last_updated is that offset.
+      const serverTs = entity.last_updated ? new Date(entity.last_updated).getTime() : NaN;
+      const sync = (globalThis.__assistTimersSync ||= { lastUpdated: null, offset: 0 });
+      if (entity.last_updated !== sync.lastUpdated) {
+        if (sync.lastUpdated !== null && Number.isFinite(serverTs)) sync.offset = Date.now() - serverTs;
+        sync.lastUpdated = entity.last_updated;
+      }
+      const haNow = Date.now() - sync.offset;
+      // Listed until the ring is dismissed on the satellite (the sensor decides).
+      const done = states['sensor.assist_timers_finished']?.attributes?.finished || [];
+      if (timers.length === 0 && done.length === 0) return idle();
+      const age = Number.isFinite(serverTs) ? Math.max(0, (haNow - serverTs) / 1000) : 0;
+      // Running timers change the attributes on every poll, so an old update means polling stopped.
+      if (age > 60 && timers.some((t) => t.is_active)) return note('mdi:timer-alert-outline', T.stale);
+
+      const clock = (total) => {
+        const h = Math.floor(total / 3600);
+        const m = Math.floor((total % 3600) / 60);
+        const s = String(total % 60).padStart(2, '0');
+        return h ? `${h}:${String(m).padStart(2, '0')}:${s}` : `${m}:${s}`;
+      };
+      const duration = (t) => {
+        const parts = [];
+        if (t.start_hours) parts.push(`${t.start_hours} h`);
+        if (t.start_minutes) parts.push(`${t.start_minutes} min`);
+        if (t.start_seconds) parts.push(`${t.start_seconds} s`);
+        return parts.join(' ');
+      };
+      const total = (t) => (t.start_hours || 0) * 3600 + (t.start_minutes || 0) * 60 + (t.start_seconds || 0);
+      // The satellite's room; its device name if it has no area.
+      const place = (id) => {
+        const device = hass?.devices?.[id];
+        if (!device) return '';
+        return hass?.areas?.[device.area_id]?.name || device.name_by_user || device.name || '';
+      };
+      // Half circle from left to right, like HA's gauge card; pathLength makes the dash a percentage.
+      // No arc at ~0: a round-capped zero-length dash would draw a dot at each end.
+      const arc = 'M 10 60 A 50 50 0 0 1 110 60';
+      const gauge = (state, progress, value, title, sub, action, id) => `
+        <div class="gauge" data-state="${state}" data-progress="${progress.toFixed(1)}" data-action="${action}"${
+          id ? ` data-timer-id="${esc(id)}"` : ''}>
+          <svg viewBox="0 0 120 70">
+            <path class="track" d="${arc}" pathLength="100"></path>
+            ${progress > 0.5 ? `<path class="arc" d="${arc}" pathLength="100" stroke-dasharray="${progress.toFixed(1)} 200"></path>` : ''}
+            <text class="time" x="60" y="58" text-anchor="middle">${esc(value)}</text>
+          </svg>
+          <div class="title">${esc(title)}</div>
+          <div class="sub">${esc(sub)}</div>
+        </div><!--/gauge-->`;
+
+      const doneGauges = done.map((f) => gauge('done', 100, T.done, f.name || T.timer,
+        [place(f.device_id), T.dismiss].filter(Boolean).join(' · '), 'dismiss'));
+      const timerGauges = timers
+        .map((t) => ({ ...t, left: Math.max(0, Math.ceil(t.total_seconds_left - (t.is_active ? age : 0))) }))
+        .sort((a, b) => a.left - b.left)
+        .map((t) => {
+          const state = !t.is_active ? 'paused' : t.left <= 10 ? 'ending' : 'running';
+          const full = total(t);
+          const progress = full > 0 ? Math.min(100, (t.left / full) * 100) : 0;
+          const sub = [place(t.device_id), t.is_active ? '' : T.paused].filter(Boolean).join(' · ');
+          return gauge(state, progress, clock(t.left), t.name || duration(t) || T.timer, sub,
+            t.is_active ? 'pause' : 'unpause', t.id);
+        });
+      const addTile = `
+        <div class="gauge add" data-action="new">
+          <svg viewBox="0 0 120 70">
+            <path class="track dashed" d="${arc}" pathLength="100"></path>
+            <text class="plus" x="60" y="58" text-anchor="middle">+</text>
+          </svg>
+          <div class="title">${esc(T.newTitle)}</div>
+          <div class="sub">${esc(T.newSub)}</div>
+        </div>`;
+      return `${css}<div class="gauges">${[...doneGauges, ...timerGauges, addTile].join('')}</div>`;
+    ]]]

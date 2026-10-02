@@ -1,0 +1,36 @@
+{
+  "services": {
+    "stop": {
+      "name": "Stop timer ring",
+      "description": "Stops an Assist timer ringing on an ESPHome satellite (e.g. Home Assistant Voice PE). media_player.media_stop does not: the ring plays on the satellite's announcement pipeline."
+    },
+    "pause": {
+      "name": "Pause timer",
+      "description": "Pauses one Assist timer by its id.",
+      "fields": {
+        "timer_id": {
+          "name": "Timer ID",
+          "description": "The timer's id, as listed in sensor.assist_timers."
+        }
+      }
+    },
+    "unpause": {
+      "name": "Resume timer",
+      "description": "Resumes one paused Assist timer by its id.",
+      "fields": {
+        "timer_id": {
+          "name": "Timer ID",
+          "description": "The timer's id, as listed in sensor.assist_timers."
+        }
+      }
+    }
+  },
+  "exceptions": {
+    "not_esphome": {
+      "message": "{entity_id} is not an ESPHome media player (or Home Assistant changed its internals)."
+    },
+    "timer_not_found": {
+      "message": "Timer {timer_id} not found (it finished or was cancelled)."
+    }
+  }
+}

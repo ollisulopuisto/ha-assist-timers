@@ -1,0 +1,19 @@
+{
+  "domain": "assist_timer_ring",
+  "name": "Assist Timers",
+  "after_dependencies": [
+    "esphome"
+  ],
+  "codeowners": [
+    "@ollisulopuisto"
+  ],
+  "dependencies": [
+    "intent",
+    "media_player"
+  ],
+  "documentation": "https://github.com/ollisulopuisto/ha-assist-timers",
+  "iot_class": "local_push",
+  "issue_tracker": "https://github.com/ollisulopuisto/ha-assist-timers/issues",
+  "requirements": [],
+  "version": "26.10.2"
+}

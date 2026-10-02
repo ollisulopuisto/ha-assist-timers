@@ -1,0 +1,230 @@
+# Home Assistant package: Assist timers of every satellite (Voice PE etc.).
+#
+# Assist timers live in HA's intent TimerManager; a satellite only keeps a
+# display copy that HA's START/UPDATE/CANCEL/FINISH events drive. This package
+# reads HA's list through the public intent HTTP API (HassTimerStatus) and edits
+# timers through the same API, so satellites see the change as usual.
+# No satellite firmware changes.
+#
+# secrets.yaml:
+#   assist_timers_intent_url: "http://127.0.0.1:8123/api/intent/handle"
+#   assist_timers_bearer: "Bearer <long-lived access token>"
+
+rest:
+  - resource: !secret assist_timers_intent_url
+    method: POST
+    headers:
+      Authorization: !secret assist_timers_bearer
+      Content-Type: application/json
+    payload: '{"name": "HassTimerStatus"}'
+    scan_interval: 5
+    timeout: 5
+    sensor:
+      - name: Assist timers
+        unique_id: assist_timers
+        icon: mdi:timer-outline
+        # Each timer: id, name, device_id, is_active, total_seconds_left,
+        # start_hours/minutes/seconds, language.
+        # A rejected or failed request must not read as "no timers".
+        availability: "{{ value_json is defined and value_json.speech_slots is defined }}"
+        value_template: "{{ value_json.speech_slots.timers | length }}"
+        json_attributes_path: "$.speech_slots"
+        json_attributes:
+          - timers
+
+# Edit a timer, e.g. from a dashboard action:
+#   action: rest_command.assist_timer_intent
+#   data: {intent: HassCancelTimer, data: {name: pasta}}
+# Intents: HassStartTimer (with `satellite`, see script.assist_timer_start),
+# HassCancelTimer, HassPauseTimer, HassUnpauseTimer,
+# HassIncreaseTimerTime / HassDecreaseTimerTime (+ hours/minutes/seconds).
+# The API selects a timer by name, area or start_hours/minutes/seconds, not by id.
+rest_command:
+  assist_timer_intent:
+    url: !secret assist_timers_intent_url
+    method: POST
+    headers:
+      Authorization: !secret assist_timers_bearer
+    content_type: application/json
+    # Optional `satellite` (a device id): the satellite a HassStartTimer timer belongs
+    # to. Not named device_id: that is a built-in template function.
+    payload: >-
+      {% set p = {"name": intent, "data": data | default({}, true)} %}
+      {% if satellite is defined and satellite %}{% set p = dict(p, device_id=satellite) %}{% endif %}
+      {{ p | to_json }}
+
+# Dismiss finished timers from HA (card / badge tap). Needs the
+# custom_components/assist_timer_ring integration (`assist_timer_ring:` in
+# configuration.yaml): media_player.media_stop would only stop the satellite's
+# music pipeline, while the ring plays on its announcement pipeline. The ring
+# state itself is internal to the firmware, so on Voice PE the LED ring keeps its
+# ringing pattern (and music stays ducked) until "stop", the button, or 15 min.
+script:
+  # Set a timer on a satellite from HA: HA's timer manager starts it for that
+  # device, which then counts down and rings exactly as for a voice-set timer.
+  # Opened as a form by tapping the timer card. Give `satellite` a `default:`
+  # (a device id) to preselect one.
+  assist_timer_start:
+    alias: Set timer
+    icon: mdi:timer-plus-outline
+    mode: queued
+    fields:
+      minutes:
+        name: Minutes
+        required: true
+        default: 5
+        selector:
+          number:
+            min: 0
+            max: 600
+            step: 1
+            mode: box
+            unit_of_measurement: min
+      seconds:
+        name: Seconds
+        default: 0
+        selector:
+          number:
+            min: 0
+            max: 59
+            step: 1
+            mode: box
+            unit_of_measurement: s
+      satellite:
+        name: Satellite
+        required: true
+        selector:
+          device:
+            filter:
+              - integration: esphome
+            entity:
+              - domain: assist_satellite
+      name:
+        name: Name
+        selector:
+          text:
+    sequence:
+      - variables:
+          slots: >-
+            {% set s = {'minutes': minutes | int(0), 'seconds': seconds | default(0) | int(0)} %}
+            {% if name is defined and name %}{% set s = dict(s, name=name) %}{% endif %}
+            {{ s }}
+      - if: "{{ slots.minutes + slots.seconds <= 0 }}"
+        then:
+          - stop: The timer has no duration
+            error: true
+      - action: rest_command.assist_timer_intent
+        data:
+          intent: HassStartTimer
+          satellite: "{{ satellite }}"
+          data: "{{ slots }}"
+        response_variable: result
+      - if: "{{ result.status != 200 or result.content.response_type == 'error' }}"
+        then:
+          - stop: "Could not set the timer: {{ result.content.speech.plain.speech | default(result.status) }}"
+            error: true
+
+  assist_timers_dismiss:
+    alias: Dismiss ringing Assist timers
+    icon: mdi:bell-off-outline
+    mode: single
+    sequence:
+      - variables:
+          players: >-
+            {% set ns = namespace(out=[]) %}
+            {% for f in state_attr('sensor.assist_timers_finished', 'finished') or [] if f.device_id %}
+            {% set ns.out = ns.out + (device_entities(f.device_id) | select('match', 'media_player\\.') | list) %}
+            {% endfor %}
+            {{ ns.out | unique | list }}
+      - if: "{{ players | count > 0 }}"
+        then:
+          - action: assist_timer_ring.stop
+            target:
+              entity_id: "{{ players }}"
+
+template:
+  # Same timers in the Alexa Media Player shape, so Simple Timer Card (HACS)
+  # can show them read-only. Use this entity in that card, not
+  # sensor.assist_timers: the card mistakes any `timers` attribute for Alexa data.
+  - sensor:
+      - name: Assist timers Alexa
+        unique_id: assist_timers_alexa
+        icon: mdi:timer-outline
+        availability: "{{ has_value('sensor.assist_timers') }}"
+        state: "{{ states('sensor.assist_timers') }}"
+        attributes:
+          sorted_active: >-
+            {% set timer_word = 'Timer' %}{# label for unnamed timers; translate here #}
+            {% set src = states.sensor.assist_timers %}
+            {% set ns = namespace(out=[]) %}
+            {% for t in (src.attributes.timers if src else none) or [] if t.is_active %}
+            {% set where = device_attr(t.device_id, 'name_by_user') or device_attr(t.device_id, 'name') if t.device_id else none %}
+            {% set ns.out = ns.out + [[t.id, {
+              'id': t.id, 'status': 'ON',
+              'timerLabel': (t.name or timer_word) ~ (' · ' ~ where if where else ''),
+              'triggerTime': ((as_timestamp(src.last_updated) + t.total_seconds_left) * 1000) | round(0) | int,
+              'originalDurationInSeconds': (t.start_hours or 0) * 3600 + (t.start_minutes or 0) * 60 + (t.start_seconds or 0)}]] %}
+            {% endfor %}
+            {{ ns.out }}
+          sorted_paused: >-
+            {% set timer_word = 'Timer' %}{# label for unnamed timers; translate here #}
+            {% set src = states.sensor.assist_timers %}
+            {% set ns = namespace(out=[]) %}
+            {% for t in (src.attributes.timers if src else none) or [] if not t.is_active %}
+            {% set where = device_attr(t.device_id, 'name_by_user') or device_attr(t.device_id, 'name') if t.device_id else none %}
+            {% set ns.out = ns.out + [[t.id, {
+              'id': t.id, 'status': 'PAUSED',
+              'timerLabel': (t.name or timer_word) ~ (' · ' ~ where if where else ''),
+              'remainingTime': t.total_seconds_left * 1000,
+              'originalDurationInSeconds': (t.start_hours or 0) * 3600 + (t.start_minutes or 0) * 60 + (t.start_seconds or 0)}]] %}
+            {% endfor %}
+            {{ ns.out }}
+
+  # Timers that ran out and are still ringing, so a dashboard can say "valmis"
+  # until the alarm is dismissed on the satellite. HA reports no finish event over
+  # this API, so a timer counts as finished when it disappears while running with
+  # at most 2 s expected left; one cancelled in its last ~2 s also shows as
+  # finished. The ring plays on the satellite's media player: an entry clears when
+  # that player has gone back to non-playing after the timer's end, after 15 min
+  # (Voice PE stops ringing by itself then), or after 1 min if the satellite has
+  # no media player.
+  - triggers:
+      - trigger: state
+        entity_id: sensor.assist_timers
+        attribute: timers
+      - trigger: time_pattern
+        seconds: /2
+    # `this` is not available at this level; read the sensor's own previous value.
+    variables:
+      finished: >-
+        {% set now_ts = as_timestamp(now()) %}
+        {% set ns = namespace(out=[]) %}
+        {% for f in state_attr('sensor.assist_timers_finished', 'finished') or [] %}
+        {% set player = (device_entities(f.device_id) | select('match', 'media_player\\.') | list | first) if f.device_id else none %}
+        {% if player and has_value(player) %}
+        {% set p = expand(player) | first %}
+        {% set dismissed = p.state not in ['playing', 'buffering'] and as_timestamp(p.last_changed) > f.ends_at %}
+        {% if not dismissed and now_ts - f.finished_at < 900 %}{% set ns.out = ns.out + [f] %}{% endif %}
+        {% elif now_ts - f.finished_at <= 60 %}{% set ns.out = ns.out + [f] %}
+        {% endif %}
+        {% endfor %}
+        {% if trigger.platform == 'state' and trigger.from_state and trigger.to_state
+              and trigger.from_state.state not in ['unknown', 'unavailable']
+              and trigger.to_state.state not in ['unknown', 'unavailable'] %}
+        {% set elapsed = as_timestamp(trigger.to_state.last_updated) - as_timestamp(trigger.from_state.last_updated) %}
+        {% set still = (trigger.to_state.attributes.timers or []) | map(attribute='id') | list %}
+        {% for t in trigger.from_state.attributes.timers or [] %}
+        {% if t.id not in still and t.is_active and t.total_seconds_left - elapsed <= 2 %}
+        {% set ns.out = ns.out + [{'id': t.id, 'name': t.name, 'device_id': t.device_id, 'finished_at': now_ts,
+            'ends_at': as_timestamp(trigger.from_state.last_updated) + t.total_seconds_left}] %}
+        {% endif %}
+        {% endfor %}
+        {% endif %}
+        {{ ns.out }}
+    sensor:
+      - name: Assist timers finished
+        unique_id: assist_timers_finished
+        icon: mdi:timer-check-outline
+        state: "{{ finished | count }}"
+        attributes:
+          finished: "{{ finished }}"

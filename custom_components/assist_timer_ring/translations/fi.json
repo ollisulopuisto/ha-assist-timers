@@ -1,0 +1,36 @@
+{
+  "services": {
+    "stop": {
+      "name": "Pysäytä ajastimen hälytys",
+      "description": "Pysäyttää ESPHome-satelliitissa (esim. Home Assistant Voice PE) soivan Assist-ajastimen. media_player.media_stop ei riitä: hälytys soi satelliitin kuulutusputkessa."
+    },
+    "pause": {
+      "name": "Tauota ajastin",
+      "description": "Tauottaa yhden Assist-ajastimen sen id:n perusteella.",
+      "fields": {
+        "timer_id": {
+          "name": "Ajastimen id",
+          "description": "Ajastimen id, kuten sensor.assist_timers listaa sen."
+        }
+      }
+    },
+    "unpause": {
+      "name": "Jatka ajastinta",
+      "description": "Jatkaa tauotettua Assist-ajastinta sen id:n perusteella.",
+      "fields": {
+        "timer_id": {
+          "name": "Ajastimen id",
+          "description": "Ajastimen id, kuten sensor.assist_timers listaa sen."
+        }
+      }
+    }
+  },
+  "exceptions": {
+    "not_esphome": {
+      "message": "{entity_id} ei ole ESPHome-mediasoitin (tai Home Assistant on muuttanut sisäisiä rakenteitaan)."
+    },
+    "timer_not_found": {
+      "message": "Ajastinta {timer_id} ei löydy (se päättyi tai peruttiin)."
+    }
+  }
+}

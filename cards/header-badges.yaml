@@ -1,0 +1,87 @@
+# View header badges (sections view): one badge per Assist timer, shortest first.
+# Label = the satellite's room; content = countdown (prefixed by the timer's name if it has one).
+# Requires Mushroom (custom:mushroom-template-badge) and sensor.assist_timers.
+# Paste under the view's `badges:`. Values refresh with the sensor (every 5 s).
+# Add a fourth badge by copying one and bumping the index (n) and `above:`.
+- type: custom:mushroom-template-badge
+  entity: sensor.assist_timers
+  icon: mdi:timer-outline
+  color: >-
+    {% set n = 0 %}{% set t = (state_attr('sensor.assist_timers', 'timers') or []) | sort(attribute='total_seconds_left') %}
+    {{ 'orange' if t | length > n and t[n].is_active else 'grey' }}
+  label: >-
+    {% set n = 0 %}{% set t = (state_attr('sensor.assist_timers', 'timers') or []) | sort(attribute='total_seconds_left') %}
+    {% if t | length > n and t[n].device_id %}{{ area_name(t[n].device_id) or '' }}{% endif %}
+  content: >-
+    {% set n = 0 %}{% set t = (state_attr('sensor.assist_timers', 'timers') or []) | sort(attribute='total_seconds_left') %}
+    {% if t | length > n %}{% set s = t[n].total_seconds_left | int %}{% if t[n].name %}{{ t[n].name }} {% endif %}{{
+    '%d:%02d:%02d' | format(s // 3600, s % 3600 // 60, s % 60) if s >= 3600
+    else '%d:%02d' | format(s // 60, s % 60) }}{{ ' ⏸' if not t[n].is_active }}{% endif %}
+  tap_action:
+    action: more-info
+  visibility:
+    - condition: numeric_state
+      entity: sensor.assist_timers
+      above: 0
+- type: custom:mushroom-template-badge
+  entity: sensor.assist_timers
+  icon: mdi:timer-outline
+  color: >-
+    {% set n = 1 %}{% set t = (state_attr('sensor.assist_timers', 'timers') or []) | sort(attribute='total_seconds_left') %}
+    {{ 'orange' if t | length > n and t[n].is_active else 'grey' }}
+  label: >-
+    {% set n = 1 %}{% set t = (state_attr('sensor.assist_timers', 'timers') or []) | sort(attribute='total_seconds_left') %}
+    {% if t | length > n and t[n].device_id %}{{ area_name(t[n].device_id) or '' }}{% endif %}
+  content: >-
+    {% set n = 1 %}{% set t = (state_attr('sensor.assist_timers', 'timers') or []) | sort(attribute='total_seconds_left') %}
+    {% if t | length > n %}{% set s = t[n].total_seconds_left | int %}{% if t[n].name %}{{ t[n].name }} {% endif %}{{
+    '%d:%02d:%02d' | format(s // 3600, s % 3600 // 60, s % 60) if s >= 3600
+    else '%d:%02d' | format(s // 60, s % 60) }}{{ ' ⏸' if not t[n].is_active }}{% endif %}
+  tap_action:
+    action: more-info
+  visibility:
+    - condition: numeric_state
+      entity: sensor.assist_timers
+      above: 1
+- type: custom:mushroom-template-badge
+  entity: sensor.assist_timers
+  icon: mdi:timer-outline
+  color: >-
+    {% set n = 2 %}{% set t = (state_attr('sensor.assist_timers', 'timers') or []) | sort(attribute='total_seconds_left') %}
+    {{ 'orange' if t | length > n and t[n].is_active else 'grey' }}
+  label: >-
+    {% set n = 2 %}{% set t = (state_attr('sensor.assist_timers', 'timers') or []) | sort(attribute='total_seconds_left') %}
+    {% if t | length > n and t[n].device_id %}{{ area_name(t[n].device_id) or '' }}{% endif %}
+  content: >-
+    {% set n = 2 %}{% set t = (state_attr('sensor.assist_timers', 'timers') or []) | sort(attribute='total_seconds_left') %}
+    {% if t | length > n %}{% set s = t[n].total_seconds_left | int %}{% if t[n].name %}{{ t[n].name }} {% endif %}{{
+    '%d:%02d:%02d' | format(s // 3600, s % 3600 // 60, s % 60) if s >= 3600
+    else '%d:%02d' | format(s // 60, s % 60) }}{{ ' ⏸' if not t[n].is_active }}{% endif %}
+  tap_action:
+    action: more-info
+  visibility:
+    - condition: numeric_state
+      entity: sensor.assist_timers
+      above: 2
+# Timers that ran out during the last minute (sensor.assist_timers_finished).
+- type: custom:mushroom-template-badge
+  entity: sensor.assist_timers_finished
+  icon: mdi:timer-check-outline
+  color: green
+  label: >-
+    {% set f = state_attr('sensor.assist_timers_finished', 'finished') or [] %}
+    {% set ns = namespace(out=[]) %}{% for d in f | map(attribute='device_id') | select | unique %}
+    {% set ns.out = ns.out + [area_name(d)] %}{% endfor %}
+    {{ ns.out | select | unique | join(', ') }}
+  content: >-
+    {% set done_word = 'done' %}{# translate here, e.g. 'valmis' #}
+    {% set f = state_attr('sensor.assist_timers_finished', 'finished') or [] %}
+    {% set names = f | map(attribute='name') | select | join(', ') %}
+    {{ names ~ ' ' ~ done_word if names else done_word | capitalize }}
+  tap_action:
+    action: perform-action
+    perform_action: script.assist_timers_dismiss
+  visibility:
+    - condition: numeric_state
+      entity: sensor.assist_timers_finished
+      above: 0
