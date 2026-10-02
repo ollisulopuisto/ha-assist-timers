@@ -42,7 +42,9 @@ So the real list of timers is in Home Assistant, and this project reads and cont
 
 ### 1. The integration (`assist_timer_ring`)
 
-Needed for pausing, resuming and dismissing. Either add this repository to HACS as a custom repository of type *Integration* and install **Assist Timers**, or copy `custom_components/assist_timer_ring/` to your `config/custom_components/`. Then add to `configuration.yaml`:
+[![Open this repository in HACS](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=ollisulopuisto&repository=ha-assist-timers&category=integration)
+
+Needed for pausing, resuming and dismissing. Either use the button above (or add this repository to HACS as a custom repository of type *Integration*) and install **Assist Timers**, or copy `custom_components/assist_timer_ring/` to your `config/custom_components/`. Then add to `configuration.yaml`:
 
 ```yaml
 assist_timer_ring:
