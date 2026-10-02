@@ -3,13 +3,13 @@
 See, set, pause and dismiss the timers of your Assist voice satellites (Home Assistant Voice PE and other ESPHome satellites) on a Home Assistant dashboard. **No firmware changes on the satellites.**
 
 <p>
-  <img src="docs/screenshots/gauge-dark.png" width="420" alt="Gauge card: a ringing timer, one about to finish, one running and one paused, plus a tile for a new timer">
-  <img src="docs/screenshots/list-dark.png" width="400" alt="List card with the same timers">
+  <img src="https://raw.githubusercontent.com/ollisulopuisto/ha-assist-timers/main/docs/screenshots/gauge-dark.png" width="420" alt="Gauge card: a ringing timer, one about to finish, one running and one paused, plus a tile for a new timer">
+  <img src="https://raw.githubusercontent.com/ollisulopuisto/ha-assist-timers/main/docs/screenshots/list-dark.png" width="400" alt="List card with the same timers">
 </p>
 
 <p>
-  <img src="docs/screenshots/idle-dark.png" width="420" alt="No timers: a 'Set a timer' button and 1 / 5 / 10 min quick picks">
-  <img src="docs/screenshots/gauge-light.png" width="420" alt="Gauge card in a light theme">
+  <img src="https://raw.githubusercontent.com/ollisulopuisto/ha-assist-timers/main/docs/screenshots/idle-dark.png" width="420" alt="No timers: a 'Set a timer' button and 1 / 5 / 10 min quick picks">
+  <img src="https://raw.githubusercontent.com/ollisulopuisto/ha-assist-timers/main/docs/screenshots/gauge-light.png" width="420" alt="Gauge card in a light theme">
 </p>
 
 ## Why this works without touching the firmware
