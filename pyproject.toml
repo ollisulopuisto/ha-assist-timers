@@ -18,7 +18,7 @@ dev = [
     "xmltodict==1.0.4",
     # assist_timer_ring sends ESPHome API commands; the version HA 2026.10 pins (production
     # 2026.9.4 has 46.2.0 with the same media_player_command signature)
-    "aioesphomeapi==46.6.0",
+    "aioesphomeapi==46.21.0",
 ]
 
 [tool.pytest.ini_options]
