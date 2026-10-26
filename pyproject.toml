@@ -21,6 +21,13 @@ dev = [
     "aioesphomeapi==46.22.0",
 ]
 
+[tool.uv]
+override-dependencies = [
+    "pillow>=13.0.0",
+    "uv>=0.13.4",
+    "pyjwt[crypto]>=2.14.0",
+]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["."]
