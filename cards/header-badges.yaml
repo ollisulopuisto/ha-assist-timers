@@ -69,10 +69,9 @@
   icon: mdi:timer-check-outline
   color: green
   label: >-
+    {# Performance: use Jinja filter pipeline instead of iterative namespace list concatenation #}
     {% set f = state_attr('sensor.assist_timers_finished', 'finished') or [] %}
-    {% set ns = namespace(out=[]) %}{% for d in f | map(attribute='device_id') | select | unique %}
-    {% set ns.out = ns.out + [area_name(d)] %}{% endfor %}
-    {{ ns.out | select | unique | join(', ') }}
+    {{ f | map(attribute='device_id') | select | unique | map('area_name') | select | unique | join(', ') }}
   content: >-
     {% set done_word = 'done' %}{# translate here, e.g. 'valmis' #}
     {% set f = state_attr('sensor.assist_timers_finished', 'finished') or [] %}

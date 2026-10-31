@@ -131,11 +131,10 @@ script:
     sequence:
       - variables:
           players: >-
-            {% set ns = namespace(out=[]) %}
-            {% for f in state_attr('sensor.assist_timers_finished', 'finished') or [] if f.device_id %}
-            {% set ns.out = ns.out + (device_entities(f.device_id) | select('match', 'media_player\\.') | list) %}
-            {% endfor %}
-            {{ ns.out | unique | list }}
+            {# Performance: avoid namespace list-concatenation loop in favor of Jinja filter pipeline #}
+            {% set finished = state_attr('sensor.assist_timers_finished', 'finished') or [] %}
+            {{ finished | map(attribute='device_id') | select | unique | map('device_entities')
+               | sum(start=[]) | select('match', 'media_player\\.') | list }}
       - if: "{{ players | count > 0 }}"
         then:
           - action: assist_timer_ring.stop
