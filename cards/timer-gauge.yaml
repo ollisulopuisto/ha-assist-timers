@@ -146,13 +146,17 @@ custom_fields:
       }
       // Tablet and HA clocks can differ by seconds. When a new poll arrives, the
       // gap between the tablet's clock and HA's last_updated is that offset.
-      const serverTs = entity.last_updated ? new Date(entity.last_updated).getTime() : NaN;
-      const sync = (globalThis.__assistTimersSync ||= { lastUpdated: null, offset: 0 });
+      // Performance: cache serverTs and avoid re-instantiating Date on every 1s render tick.
+      const now = Date.now();
+      const sync = (globalThis.__assistTimersSync ||= { lastUpdated: null, serverTs: NaN, offset: 0 });
       if (entity.last_updated !== sync.lastUpdated) {
-        if (sync.lastUpdated !== null && Number.isFinite(serverTs)) sync.offset = Date.now() - serverTs;
+        const serverTs = entity.last_updated ? Date.parse(entity.last_updated) : NaN;
+        if (sync.lastUpdated !== null && Number.isFinite(serverTs)) sync.offset = now - serverTs;
         sync.lastUpdated = entity.last_updated;
+        sync.serverTs = serverTs;
       }
-      const haNow = Date.now() - sync.offset;
+      const serverTs = sync.serverTs;
+      const haNow = now - sync.offset;
       // Listed until the ring is dismissed on the satellite (the sensor decides).
       const done = states['sensor.assist_timers_finished']?.attributes?.finished || [];
       if (timers.length === 0 && done.length === 0) return idle();
