@@ -71,4 +71,5 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     schema = vol.Schema({vol.Required("timer_id"): cv.string})
     hass.services.async_register(DOMAIN, "pause", by_id("pause_timer"), schema=schema)
     hass.services.async_register(DOMAIN, "unpause", by_id("unpause_timer"), schema=schema)
+    hass.services.async_register(DOMAIN, "cancel", by_id("cancel_timer"), schema=schema)
     return True

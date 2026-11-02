@@ -23,6 +23,16 @@
           "description": "The timer's id, as listed in sensor.assist_timers."
         }
       }
+    },
+    "cancel": {
+      "name": "Cancel timer",
+      "description": "Cancels one Assist timer by its id. It is removed and does not ring.",
+      "fields": {
+        "timer_id": {
+          "name": "Timer ID",
+          "description": "The timer's id, as listed in sensor.assist_timers."
+        }
+      }
     }
   },
   "exceptions": {

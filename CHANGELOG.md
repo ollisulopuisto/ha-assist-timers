@@ -2,6 +2,11 @@
 
 All notable changes to this project are documented here. Versions follow [Calendar Versioning](https://calver.org/): `vYY.MM.DD.N`.
 
+## [v26.11.02.1] - 2026-11-02
+
+- New service `assist_timer_ring.cancel` (timer_id): cancels one Assist timer by id, so the
+  dashboard can offer an X on each timer. The satellite is told the timer was cancelled.
+
 ## [v26.10.02.3] - 2026-10-02
 
 - README screenshots show in HACS too (absolute image URLs).

@@ -15,3 +15,9 @@ unpause:
       required: true
       selector:
         text:
+cancel:
+  fields:
+    timer_id:
+      required: true
+      selector:
+        text:

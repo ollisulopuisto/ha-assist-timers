@@ -108,5 +108,5 @@ def test_translations_cover_services_and_errors() -> None:
         return {prefix + k for k, v in d.items()} | {x for k, v in d.items() if isinstance(v, dict) for x in keys(v, f"{prefix}{k}.")}
 
     assert keys(en) == keys(fi)
-    assert set(en["services"]) == {"stop", "pause", "unpause"}
+    assert set(en["services"]) == {"stop", "pause", "unpause", "cancel"}
     assert set(en["exceptions"]) == {"not_esphome", "timer_not_found"}

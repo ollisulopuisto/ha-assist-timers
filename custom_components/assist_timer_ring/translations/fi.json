@@ -23,6 +23,16 @@
           "description": "Ajastimen id, kuten sensor.assist_timers listaa sen."
         }
       }
+    },
+    "cancel": {
+      "name": "Peruuta ajastin",
+      "description": "Peruuttaa yhden Assist-ajastimen id:n perusteella. Ajastin poistetaan eikä se soi.",
+      "fields": {
+        "timer_id": {
+          "name": "Ajastimen id",
+          "description": "Ajastimen id, sensor.assist_timers-listan mukaan."
+        }
+      }
     }
   },
   "exceptions": {
