@@ -196,9 +196,14 @@ template:
     # `this` is not available at this level; read the sensor's own previous value.
     variables:
       finished: >-
+        {# Performance: early return on periodic /2s time_pattern trigger when no timers are finished #}
+        {% set prev = state_attr('sensor.assist_timers_finished', 'finished') or [] %}
+        {% if trigger.platform != 'state' and not prev %}
+        {{ [] }}
+        {% else %}
         {% set now_ts = as_timestamp(now()) %}
         {% set ns = namespace(out=[]) %}
-        {% for f in state_attr('sensor.assist_timers_finished', 'finished') or [] %}
+        {% for f in prev %}
         {% set player = (device_entities(f.device_id) | select('match', 'media_player\\.') | list | first) if f.device_id else none %}
         {% if player and has_value(player) %}
         {% set p = expand(player) | first %}
@@ -220,6 +225,7 @@ template:
         {% endfor %}
         {% endif %}
         {{ ns.out }}
+        {% endif %}
     sensor:
       - name: Assist timers finished
         unique_id: assist_timers_finished
