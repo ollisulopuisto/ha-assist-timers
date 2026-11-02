@@ -2,6 +2,11 @@
 
 All notable changes to this project are documented here. Versions follow [Calendar Versioning](https://calver.org/): `vYY.MM.DD.N`.
 
+## [v26.11.02.3] - 2026-11-02
+
+- Manifest version now matches the release tag. It still said 26.10.2.3 in v26.11.02.2, so Home Assistant
+  showed the old version number after the update.
+
 ## [v26.11.02.2] - 2026-11-03
 
 - New service `assist_timer_ring.restore` (timers: list): recreates saved timers after a Home Assistant
