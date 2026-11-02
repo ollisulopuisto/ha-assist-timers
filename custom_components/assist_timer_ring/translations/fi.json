@@ -33,6 +33,16 @@
           "description": "Ajastimen id, sensor.assist_timers-listan mukaan."
         }
       }
+    },
+    "restore": {
+      "name": "Palauta ajastimet",
+      "description": "Luo tallennetut Assist-ajastimet uudelleen Home Assistantin käynnistyksen jälkeen: jäljellä oleva aika, nimi ja satelliitti säilyvät. Tauolla olevat pysyvät tauolla.",
+      "fields": {
+        "timers": {
+          "name": "Ajastimet",
+          "description": "Saved timers: device_id, name, seconds, paused."
+        }
+      }
     }
   },
   "exceptions": {

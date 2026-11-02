@@ -20,6 +20,8 @@ will offer this natively; until then this uses TimerManager (intent/timers.py).
 
 from __future__ import annotations
 
+import logging
+
 import voluptuous as vol
 from aioesphomeapi import MediaPlayerCommand
 from homeassistant.components.intent.const import TIMER_DATA
@@ -29,6 +31,8 @@ from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers.service import async_extract_entity_ids
 from homeassistant.helpers.typing import ConfigType
+
+_LOGGER = logging.getLogger(__name__)
 
 DOMAIN = "assist_timer_ring"
 CONFIG_SCHEMA = cv.empty_config_schema(DOMAIN)
@@ -72,4 +76,25 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     hass.services.async_register(DOMAIN, "pause", by_id("pause_timer"), schema=schema)
     hass.services.async_register(DOMAIN, "unpause", by_id("unpause_timer"), schema=schema)
     hass.services.async_register(DOMAIN, "cancel", by_id("cancel_timer"), schema=schema)
+
+    async def restore(call: ServiceCall) -> None:
+        """Recreate saved timers after a restart: remaining time, name and satellite kept."""
+        manager = hass.data[TIMER_DATA]
+        for item in call.data["timers"]:
+            device_id = item.get("device_id")
+            seconds = int(item.get("seconds") or 0)
+            if seconds <= 0 or not device_id or not manager.is_timer_device(device_id):
+                _LOGGER.info("restore: ohitettiin ajastin %s (laite %s, %s s)", item.get("name"), device_id, seconds)
+                continue
+            timer_id = manager.start_timer(
+                device_id, None, None, seconds, hass.config.language, name=item.get("name") or None
+            )
+            if item.get("paused"):
+                manager.pause_timer(timer_id)
+
+    hass.services.async_register(
+        DOMAIN, "restore",
+        restore,
+        schema=vol.Schema({vol.Required("timers"): [dict]}),
+    )
     return True

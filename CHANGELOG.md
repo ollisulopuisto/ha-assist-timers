@@ -2,6 +2,12 @@
 
 All notable changes to this project are documented here. Versions follow [Calendar Versioning](https://calver.org/): `vYY.MM.DD.N`.
 
+## [v26.11.02.2] - 2026-11-03
+
+- New service `assist_timer_ring.restore` (timers: list): recreates saved timers after a Home Assistant
+  restart with their remaining time, name and satellite. Paused timers stay paused. Unknown devices and
+  expired timers are skipped. HA gives recreated timers new ids, and the satellite receives STARTED for them.
+
 ## [v26.11.02.1] - 2026-11-02
 
 - New service `assist_timer_ring.cancel` (timer_id): cancels one Assist timer by id, so the

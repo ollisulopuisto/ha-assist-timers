@@ -21,3 +21,9 @@ cancel:
       required: true
       selector:
         text:
+restore:
+  fields:
+    timers:
+      required: true
+      selector:
+        object:

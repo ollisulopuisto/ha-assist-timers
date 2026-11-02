@@ -33,6 +33,16 @@
           "description": "The timer's id, as listed in sensor.assist_timers."
         }
       }
+    },
+    "restore": {
+      "name": "Restore timers",
+      "description": "Recreates saved Assist timers after a Home Assistant restart: remaining time, name and satellite are kept. Paused timers stay paused.",
+      "fields": {
+        "timers": {
+          "name": "Timers",
+          "description": "Saved timers: device_id, name, seconds, paused."
+        }
+      }
     }
   },
   "exceptions": {
