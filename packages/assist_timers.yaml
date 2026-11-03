@@ -206,7 +206,8 @@ template:
         {% for f in prev %}
         {% set player = (device_entities(f.device_id) | select('match', 'media_player\\.') | list | first) if f.device_id else none %}
         {% if player and has_value(player) %}
-        {% set p = expand(player) | first %}
+        {# Performance: direct state lookup instead of expand() #}
+        {% set p = states[player] %}
         {% set dismissed = p.state not in ['playing', 'buffering'] and as_timestamp(p.last_changed) > f.ends_at %}
         {% if not dismissed and now_ts - f.finished_at < 900 %}{% set ns.out = ns.out + [f] %}{% endif %}
         {% elif now_ts - f.finished_at <= 60 %}{% set ns.out = ns.out + [f] %}
