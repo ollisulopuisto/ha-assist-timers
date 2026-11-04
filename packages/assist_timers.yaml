@@ -153,21 +153,24 @@ template:
         state: "{{ states('sensor.assist_timers') }}"
         attributes:
           sorted_active: >-
+            {# Performance: direct state lookup and hoist invariant last_updated timestamp conversion #}
             {% set timer_word = 'Timer' %}{# label for unnamed timers; translate here #}
-            {% set src = states.sensor.assist_timers %}
+            {% set src = states['sensor.assist_timers'] %}
+            {% set base_ts = as_timestamp(src.last_updated) if src else 0 %}
             {% set ns = namespace(out=[]) %}
             {% for t in (src.attributes.timers if src else none) or [] if t.is_active %}
             {% set where = device_attr(t.device_id, 'name_by_user') or device_attr(t.device_id, 'name') if t.device_id else none %}
             {% set ns.out = ns.out + [[t.id, {
               'id': t.id, 'status': 'ON',
               'timerLabel': (t.name or timer_word) ~ (' · ' ~ where if where else ''),
-              'triggerTime': ((as_timestamp(src.last_updated) + t.total_seconds_left) * 1000) | round(0) | int,
+              'triggerTime': ((base_ts + t.total_seconds_left) * 1000) | round(0) | int,
               'originalDurationInSeconds': (t.start_hours or 0) * 3600 + (t.start_minutes or 0) * 60 + (t.start_seconds or 0)}]] %}
             {% endfor %}
             {{ ns.out }}
           sorted_paused: >-
+            {# Performance: direct state lookup instead of attribute traversal #}
             {% set timer_word = 'Timer' %}{# label for unnamed timers; translate here #}
-            {% set src = states.sensor.assist_timers %}
+            {% set src = states['sensor.assist_timers'] %}
             {% set ns = namespace(out=[]) %}
             {% for t in (src.attributes.timers if src else none) or [] if not t.is_active %}
             {% set where = device_attr(t.device_id, 'name_by_user') or device_attr(t.device_id, 'name') if t.device_id else none %}
