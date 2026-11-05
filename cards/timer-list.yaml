@@ -199,17 +199,18 @@ custom_fields:
       const doneRows = done.map((f) =>
         row('done', 'mdi:bell-ring', f.name || T.timer,
             [place(f.device_id), T.dismiss].filter(Boolean).join(' · '), T.done, null, 'dismiss'));
+      // Performance: pair timer reference with computed remaining seconds to avoid shallow copying all properties on every 1s tick
       const rows = timers
-        .map((t) => ({ ...t, left: Math.max(0, Math.ceil(t.total_seconds_left - (t.is_active ? age : 0))) }))
+        .map((t) => ({ t, left: Math.max(0, Math.ceil(t.total_seconds_left - (t.is_active ? age : 0))) }))
         .sort((a, b) => a.left - b.left)
-        .map((t) => {
-          const state = !t.is_active ? 'paused' : t.left <= 10 ? 'ending' : 'running';
+        .map(({ t, left }) => {
+          const state = !t.is_active ? 'paused' : left <= 10 ? 'ending' : 'running';
           const label = duration(t);
           const title = t.name || label || T.timer;
           const sub = [place(t.device_id), t.name ? label : '', t.is_active ? '' : T.paused].filter(Boolean).join(' · ');
           const full = total(t);
-          const progress = full > 0 ? Math.min(100, (t.left / full) * 100) : null;
-          return row(state, t.is_active ? 'mdi:timer-outline' : 'mdi:timer-pause-outline', title, sub, clock(t.left), progress,
+          const progress = full > 0 ? Math.min(100, (left / full) * 100) : null;
+          return row(state, t.is_active ? 'mdi:timer-outline' : 'mdi:timer-pause-outline', title, sub, clock(left), progress,
             t.is_active ? 'pause' : 'unpause', t.id);
         });
       const addRow = `<div class="addrow" data-action="new"><ha-icon icon="mdi:plus"></ha-icon>${esc(T.newRow)}</div>`;

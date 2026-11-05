@@ -201,15 +201,16 @@ custom_fields:
 
       const doneGauges = done.map((f) => gauge('done', 100, T.done, f.name || T.timer,
         [place(f.device_id), T.dismiss].filter(Boolean).join(' · '), 'dismiss'));
+      // Performance: pair timer reference with computed remaining seconds to avoid shallow copying all properties on every 1s tick
       const timerGauges = timers
-        .map((t) => ({ ...t, left: Math.max(0, Math.ceil(t.total_seconds_left - (t.is_active ? age : 0))) }))
+        .map((t) => ({ t, left: Math.max(0, Math.ceil(t.total_seconds_left - (t.is_active ? age : 0))) }))
         .sort((a, b) => a.left - b.left)
-        .map((t) => {
-          const state = !t.is_active ? 'paused' : t.left <= 10 ? 'ending' : 'running';
+        .map(({ t, left }) => {
+          const state = !t.is_active ? 'paused' : left <= 10 ? 'ending' : 'running';
           const full = total(t);
-          const progress = full > 0 ? Math.min(100, (t.left / full) * 100) : 0;
+          const progress = full > 0 ? Math.min(100, (left / full) * 100) : 0;
           const sub = [place(t.device_id), t.is_active ? '' : T.paused].filter(Boolean).join(' · ');
-          return gauge(state, progress, clock(t.left), t.name || duration(t) || T.timer, sub,
+          return gauge(state, progress, clock(left), t.name || duration(t) || T.timer, sub,
             t.is_active ? 'pause' : 'unpause', t.id);
         });
       const addTile = `
