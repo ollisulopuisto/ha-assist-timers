@@ -200,6 +200,58 @@ def test_click_ringing_timer_dismisses(path):
     assert click(path, "dismiss")["calls"] == [["service", "script", "assist_timers_dismiss", {}]]
 
 
+def test_optimistic_ui_updates_on_tap():
+    """Verify that pausing immediately sets state=paused, and unpausing sets state=running."""
+    for path in CARDS:
+        with open(path) as f:
+            card_yaml = yaml.safe_load(f)
+        code = card_yaml["custom_fields"]["timers"].strip().removeprefix("[[[").removesuffix("]]]")
+        tap = card_yaml["tap_action"]["javascript"].strip().removeprefix("[[[").removesuffix("]]]")
+        entity = {"state": "0", "last_updated": "2026-10-02T06:00:00Z", "attributes": {"timers": []}}
+        js = f"""
+        const listeners = {{}};
+        const card = {{
+          shadowRoot: {{ addEventListener: (type, fn) => {{ (listeners[type] ||= []).push(fn); }} }},
+          _hass: {{ language: 'fi', callService: () => {{}}, services: {{}} }},
+        }};
+        const fn = new Function('states', 'entity', 'user', 'hass', 'variables', 'html', 'helpers',
+                                "'use strict'; " + {json.dumps(code)});
+        fn.call(card, {{}}, {json.dumps(entity)}, {{}}, {{}}, {{}}, () => '', {{}});
+
+        const target = {{
+          dataset: {{ action: 'pause', timerId: 't1', state: 'running' }},
+          style: {{ display: '' }},
+        }};
+        listeners.pointerdown[0]({{ composedPath: () => [target] }});
+        const tapFn = new Function('states', 'entity', 'user', 'hass', 'variables', 'html', 'helpers',
+                                   "'use strict'; " + {json.dumps(tap)});
+        tapFn.call(card, {{}}, {json.dumps(entity)}, {{}}, {{}}, {{}}, () => '', {{}});
+        const pausedResult = {{ state: target.dataset.state, action: target.dataset.action }};
+
+        // Now test unpause
+        listeners.pointerdown[0]({{ composedPath: () => [target] }});
+        tapFn.call(card, {{}}, {json.dumps(entity)}, {{}}, {{}}, {{}}, () => '', {{}});
+        const unpausedResult = {{ state: target.dataset.state, action: target.dataset.action }};
+
+        // Now test dismiss
+        const dismissTarget = {{
+          dataset: {{ action: 'dismiss' }},
+          style: {{ display: '' }},
+        }};
+        listeners.pointerdown[0]({{ composedPath: () => [dismissTarget] }});
+        tapFn.call(card, {{}}, {json.dumps(entity)}, {{}}, {{}}, {{}}, () => '', {{}});
+        const dismissResult = {{ display: dismissTarget.style.display }};
+
+        process.stdout.write(JSON.stringify({{ pausedResult, unpausedResult, dismissResult }}));
+        """
+        res = subprocess.run(["node", "-e", js], capture_output=True, text=True, check=False)
+        assert res.returncode == 0, res.stderr
+        data = json.loads(res.stdout)
+        assert data["pausedResult"] == {"state": "paused", "action": "unpause"}
+        assert data["unpausedResult"] == {"state": "running", "action": "pause"}
+        assert data["dismissResult"] == {"display": "none"}
+
+
 @pytest.mark.parametrize("path", CARDS)
 def test_click_new_opens_popup_and_sets_timer(path):
     services = {"script": {"assist_timer_start": {"fields": {"satellite": {"default": "kitchen", "selector": {"device": {}}}}}}}
