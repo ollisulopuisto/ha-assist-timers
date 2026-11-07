@@ -53,12 +53,16 @@ custom_fields:
       if (card?.shadowRoot && !card.__assistTimerPress) {
         card.__assistTimerPress = true;
         card.shadowRoot.addEventListener('pointerdown', (ev) => {
-          card.__assistTimerPressed = ev.composedPath().find((n) => n?.dataset?.action)?.dataset || null;
+          const target = ev.composedPath().find((n) => n?.dataset?.action) || null;
+          card.__assistTimerPressed = target?.dataset || null;
+          card.__assistTimerTarget = target;
         }, true);
       }
       if (card) card.__assistTimerAct = () => {
           const pressed = card.__assistTimerPressed;
+          const target = card.__assistTimerTarget;
           card.__assistTimerPressed = null;
+          card.__assistTimerTarget = null;
           if (!pressed) return;
           const h = card._hass;
           const L = tr(h);
@@ -87,9 +91,25 @@ custom_fields:
               }));
             }
           };
-          if (action === 'dismiss') h.callService('script', 'assist_timers_dismiss', {});
-          else if (action === 'pause' || action === 'unpause') h.callService('assist_timer_ring', action, { timer_id: timerId });
-          else if (action === 'quick') {
+          // Performance: update UI immediately on tap for instant perceived responsiveness before backend poll
+          if (action === 'dismiss') {
+            if (target?.style) target.style.display = 'none';
+            h.callService('script', 'assist_timers_dismiss', {});
+          } else if (action === 'pause') {
+            if (target?.dataset) {
+              target.dataset.state = 'paused';
+              target.dataset.action = 'unpause';
+              target.querySelector?.('.bubble ha-icon')?.setAttribute('icon', 'mdi:timer-pause-outline');
+            }
+            h.callService('assist_timer_ring', 'pause', { timer_id: timerId });
+          } else if (action === 'unpause') {
+            if (target?.dataset) {
+              target.dataset.state = 'running';
+              target.dataset.action = 'pause';
+              target.querySelector?.('.bubble ha-icon')?.setAttribute('icon', 'mdi:timer-outline');
+            }
+            h.callService('assist_timer_ring', 'unpause', { timer_id: timerId });
+          } else if (action === 'quick') {
             const satellite = fields.satellite?.default;
             if (satellite) h.callService('script', 'assist_timer_start', { minutes: Number(minutes), satellite });
             else ask(Number(minutes));
