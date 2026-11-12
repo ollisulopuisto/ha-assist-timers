@@ -11,6 +11,9 @@ updates:
       all-uv:
         patterns:
           - "*"
+        exclude-patterns:
+          - "pytest"
+          - "pytest-*"
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
