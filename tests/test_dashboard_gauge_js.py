@@ -95,7 +95,7 @@ def test_names_are_html_escaped():
 def test_accessible_names_are_escaped_once():
     """A name is escaped once, not once for the label and again inside it."""
     out = render(sensor([timer(name="Tom & Jerry", total_seconds_left=185)]), {"language": "en", **HASS})
-    assert 'aria-label="Pause Tom &amp; Jerry"' in out
+    assert 'aria-label="Pause Tom &amp; Jerry, 3:05 · Keittiö"' in out
     assert "&amp;amp;" not in out
 
 
@@ -289,14 +289,14 @@ def test_gauges_are_buttons_with_accessible_names():
                  {"language": "en", **HASS}, age_s=10)
     assert 'role="button"' in out
     assert 'tabindex="0"' in out
-    assert 'aria-label="Resume pasta"' in out
+    assert 'aria-label="Resume pasta, 3:05 · Keittiö"' in out
     assert 'aria-label="Set a timer"' in out
 
 
 def test_done_gauge_is_a_stop_button():
     states = {"sensor.assist_timers_finished": {"attributes": {"finished": [{"id": "d", "name": "eggs", "device_id": ""}]}}}
     out = render(sensor([]), {"language": "en", **HASS}, states=states)
-    assert 'aria-label="Stop eggs"' in out
+    assert 'aria-label="Stop eggs, Done"' in out
 
 
 def test_idle_controls_are_buttons():
@@ -384,3 +384,22 @@ def test_english_gauges_and_popup():
     assert out[0]["text"] == "Done Timer Keittiö · tap to dismiss"
     assert out[1]["text"] == "1:00 10 min Keittiö · paused"
     assert "New timer" in text(render(sensor([timer()]), hass))
+
+
+def test_same_named_timers_in_different_rooms_announce_differently():
+    """Two "pasta" gauges in different rooms used to both announce "Pause pasta";
+    the countdown and room must reach the accessible name."""
+    hass = {"language": "en",
+            "devices": {"dev1": {"name": "Voice PE", "area_id": "kitchen"},
+                        "dev2": {"name": "Voice PE", "area_id": "living"}},
+            "areas": {"kitchen": {"name": "Kitchen"}, "living": {"name": "Living room"}}}
+    out = render(sensor([timer(id="a", name="pasta", device_id="dev1", total_seconds_left=175),
+                         timer(id="b", name="pasta", device_id="dev2", total_seconds_left=30)]), hass)
+    labels = re.findall(r'aria-label="([^"]*)"', out)
+    assert "Pause pasta, 2:55 · Kitchen" in labels
+    assert "Pause pasta, 0:30 · Living room" in labels
+
+
+def test_gauges_keep_the_announcement_for_optimistic_updates():
+    out = render(sensor([timer(name="pasta", total_seconds_left=185)]), {"language": "en", **HASS})
+    assert 'data-announce="3:05 · Keittiö"' in out

@@ -122,7 +122,7 @@ def activate(path: str, action: str) -> dict:
     const listeners = {{}};
     const attrs = {{}};
     const target = {{
-      dataset: {{ action: {json.dumps(action)}, timerId: 'r' }}, style: {{}},
+      dataset: {{ action: {json.dumps(action)}, timerId: 'r', announce: '3:05 · Kitchen' }}, style: {{}},
       querySelector: (sel) => sel === '.title' ? {{ textContent: 'pasta' }} : {{ setAttribute: () => {{}} }},
       setAttribute: (k, v) => (attrs[k] = v),
     }};
@@ -148,5 +148,11 @@ def activate(path: str, action: str) -> dict:
 @pytest.mark.parametrize("path", CARDS)
 def test_optimistic_pause_updates_the_accessible_name(path):
     """The label must say what the next press does, not what the last one did."""
-    assert activate(path, "pause") == {"action": "unpause", "label": "Resume pasta"}
-    assert activate(path, "unpause") == {"action": "pause", "label": "Pause pasta"}
+    assert activate(path, "pause") == {
+        "action": "unpause",
+        "label": "Resume pasta, 3:05 · Kitchen",
+    }
+    assert activate(path, "unpause") == {
+        "action": "pause",
+        "label": "Pause pasta, 3:05 · Kitchen",
+    }

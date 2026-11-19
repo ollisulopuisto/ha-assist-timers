@@ -47,9 +47,13 @@ custom_fields:
       const tr = (hs) => I18N[String(hs?.locale?.language || hs?.language || 'en').split('-')[0]] || I18N.en;
       const T = tr(hass);
       // Accessible name of each timer control: what tapping it does, in the UI language.
-      const buttonLabel = (action, title) => {
+      // An explicit aria-label hides the content-derived name, so the countdown and room
+      // (extra) must be part of the label, or same-named timers in different rooms sound
+      // identical and the remaining time is never announced.
+      const buttonLabel = (action, title, extra = '') => {
         const v = { pause: T.pause, unpause: T.resume, dismiss: T.stop, new: T.set };
-        return `${v[action] || ''} ${esc(title)}`.trim();
+        const base = `${v[action] || ''} ${title}`.trim();
+        return esc(extra ? `${base}, ${extra}` : base);
       };
 
       // Clicks: every timer, tile and chip says what it does in data-action. button-card
@@ -98,11 +102,15 @@ custom_fields:
           const { action, timerId, minutes } = pressed;
           const fields = h?.services?.script?.assist_timer_start?.fields || {};
           // Keep the accessible name in step with the optimistic pause/resume.
+          // data-announce carries the countdown and room rendered with the control,
+          // so the rebuilt label does not drop them before the next 1 s render.
           const setAction = (el, next, verb) => {
             if (!el?.dataset) return;
             el.dataset.action = next;
             const title = el.querySelector?.('.title')?.textContent || '';
-            el.setAttribute?.('aria-label', `${verb} ${title}`.trim());
+            const extra = el.dataset.announce || '';
+            const base = `${verb} ${title}`.trim();
+            el.setAttribute?.('aria-label', extra ? `${base}, ${extra}` : base);
           };
           // Form for a new timer: a browser_mod popup that closes once the timer is set;
           // without browser_mod, the script's own form.
@@ -249,10 +257,11 @@ custom_fields:
         if (!device) return '';
         return hass?.areas?.[device.area_id]?.name || device.name_by_user || device.name || '';
       };
-      const row = (state, icon, title, sub, right, progress, action, id, key) => `
+      const row = (state, icon, title, sub, right, progress, action, id, key, announce = '') => `
         <div class="row" data-state="${state}" data-action="${action}"${
           id ? ` data-timer-id="${esc(id)}"` : ''} data-focus-key="${esc(key)}" role="button" tabindex="0"
-          aria-label="${buttonLabel(action, title)}">
+          aria-label="${buttonLabel(action, title, announce)}"${
+          announce ? ` data-announce="${esc(announce)}"` : ''}>
           <div class="bubble"><ha-icon icon="${icon}"></ha-icon></div>
           <div><div class="title">${esc(title)}</div><div class="sub">${esc(sub)}</div></div>
           <div class="time">${esc(right)}</div>
@@ -261,7 +270,8 @@ custom_fields:
 
       const doneRows = done.map((f) =>
         row('done', 'mdi:bell-ring', f.name || T.timer,
-            [place(f.device_id), T.dismiss].filter(Boolean).join(' · '), T.done, null, 'dismiss', null, `done-${f.id}`));
+            [place(f.device_id), T.dismiss].filter(Boolean).join(' · '), T.done, null, 'dismiss', null, `done-${f.id}`,
+            [T.done, place(f.device_id)].filter(Boolean).join(' · ')));
       // Performance: pair timer reference with computed remaining seconds to avoid shallow copying all properties on every 1s tick
       const rows = timers
         .map((t) => ({ t, left: Math.max(0, Math.ceil(t.total_seconds_left - (t.is_active ? age : 0))) }))
@@ -274,7 +284,8 @@ custom_fields:
           const full = total(t);
           const progress = full > 0 ? Math.min(100, (left / full) * 100) : null;
           return row(state, t.is_active ? 'mdi:timer-outline' : 'mdi:timer-pause-outline', title, sub, clock(left), progress,
-            t.is_active ? 'pause' : 'unpause', t.id, `timer-${t.id}`);
+            t.is_active ? 'pause' : 'unpause', t.id, `timer-${t.id}`,
+            [clock(left), place(t.device_id)].filter(Boolean).join(' · '));
         });
       const addRow = `<div class="addrow" data-action="new" data-focus-key="new" role="button" tabindex="0"
         aria-label="${esc(T.newRow)}"><ha-icon icon="mdi:plus"></ha-icon>${esc(T.newRow)}</div>`;
