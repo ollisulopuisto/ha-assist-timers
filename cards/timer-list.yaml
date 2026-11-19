@@ -36,26 +36,59 @@ custom_fields:
         en: { unavailable: 'Voice timers unavailable', stale: 'Voice timers: stale data', set: 'Set a timer',
               newTitle: 'New', newSub: 'timer', newRow: 'New timer', done: 'Done', dismiss: 'tap to dismiss',
               paused: 'paused', timer: 'Timer', minutes: 'Minutes', seconds: 'Seconds', satellite: 'Satellite',
-              name: 'Name', cancel: 'Cancel', ok: 'Set' },
+              name: 'Name', cancel: 'Cancel', ok: 'Set', pause: 'Pause', resume: 'Resume', stop: 'Stop',
+            quick: 'Start {m} minute timer' },
         fi: { unavailable: 'Puheajastimet: tila ei saatavilla', stale: 'Puheajastimet: vanhentunut tieto',
               set: 'Aseta ajastin', newTitle: 'Uusi', newSub: 'ajastin', newRow: 'Uusi ajastin', done: 'Valmis',
               dismiss: 'napauta kuitataksesi', paused: 'tauolla', timer: 'Ajastin', minutes: 'Minuutit',
-              seconds: 'Sekunnit', satellite: 'Satelliitti', name: 'Nimi', cancel: 'Peruuta', ok: 'Aseta' },
+              seconds: 'Sekunnit', satellite: 'Satelliitti', name: 'Nimi', cancel: 'Peruuta', ok: 'Aseta',
+              pause: 'Tauota', resume: 'Jatka', stop: 'Pysäytä', quick: 'Aseta {m} minuutin ajastin' },
       };
       const tr = (hs) => I18N[String(hs?.locale?.language || hs?.language || 'en').split('-')[0]] || I18N.en;
       const T = tr(hass);
+      // Accessible name of each timer control: what tapping it does, in the UI language.
+      // An explicit aria-label hides the content-derived name, so the countdown and room
+      // (extra) must be part of the label, or same-named timers in different rooms sound
+      // identical and the remaining time is never announced.
+      const buttonLabel = (action, title, extra = '') => {
+        const v = { pause: T.pause, unpause: T.resume, dismiss: T.stop, new: T.set };
+        const base = `${v[action] || ''} ${title}`.trim();
+        return esc(extra ? `${base}, ${extra}` : base);
+      };
 
       // Clicks: every timer, tile and chip says what it does in data-action. button-card
       // runs this template with `this` = the card element. It handles the click itself
       // (its own tap detection, also on touch screens) and does not let it through, so the
       // pressed item is remembered on pointerdown and tap_action calls __assistTimerAct.
       const card = this;
+      const root = card?.shadowRoot;
+      // button-card replaces this field's HTML on every 1 s tick, which drops keyboard
+      // focus to <body>. If a control had focus, put it back on the same control after
+      // the re-render, unless the user has already moved focus somewhere else.
+      const focusKey = root?.activeElement?.dataset?.focusKey || null;
+      if (focusKey) setTimeout(() => {
+        if (root.activeElement) return;
+        const outside = document.activeElement;
+        if (outside && outside !== document.body && outside !== card) return;
+        const again = [...root.querySelectorAll('[data-focus-key]')]
+          .find((n) => n.dataset.focusKey === focusKey);
+        again?.focus({ preventScroll: true });
+      }, 0);
       if (card?.shadowRoot && !card.__assistTimerPress) {
         card.__assistTimerPress = true;
         card.shadowRoot.addEventListener('pointerdown', (ev) => {
           const target = ev.composedPath().find((n) => n?.dataset?.action) || null;
           card.__assistTimerPressed = target?.dataset || null;
           card.__assistTimerTarget = target;
+        }, true);
+        card.shadowRoot.addEventListener('keydown', (ev) => {
+          if (ev.key !== 'Enter' && ev.key !== ' ') return;
+          const target = ev.composedPath().find((n) => n?.dataset?.action) || null;
+          if (!target) return;
+          ev.preventDefault();
+          card.__assistTimerPressed = target.dataset;
+          card.__assistTimerTarget = target;
+          card.__assistTimerAct();
         }, true);
       }
       if (card) card.__assistTimerAct = () => {
@@ -68,6 +101,17 @@ custom_fields:
           const L = tr(h);
           const { action, timerId, minutes } = pressed;
           const fields = h?.services?.script?.assist_timer_start?.fields || {};
+          // Keep the accessible name in step with the optimistic pause/resume.
+          // data-announce carries the countdown and room rendered with the control,
+          // so the rebuilt label does not drop them before the next 1 s render.
+          const setAction = (el, next, verb) => {
+            if (!el?.dataset) return;
+            el.dataset.action = next;
+            const title = el.querySelector?.('.title')?.textContent || '';
+            const extra = el.dataset.announce || '';
+            const base = `${verb} ${title}`.trim();
+            el.setAttribute?.('aria-label', extra ? `${base}, ${extra}` : base);
+          };
           // Form for a new timer: a browser_mod popup that closes once the timer is set;
           // without browser_mod, the script's own form.
           const ask = (preset) => {
@@ -98,14 +142,14 @@ custom_fields:
           } else if (action === 'pause') {
             if (target?.dataset) {
               target.dataset.state = 'paused';
-              target.dataset.action = 'unpause';
+              setAction(target, 'unpause', L.resume);
               target.querySelector?.('.bubble ha-icon')?.setAttribute('icon', 'mdi:timer-pause-outline');
             }
             h.callService('assist_timer_ring', 'pause', { timer_id: timerId });
           } else if (action === 'unpause') {
             if (target?.dataset) {
               target.dataset.state = 'running';
-              target.dataset.action = 'pause';
+              setAction(target, 'pause', L.pause);
               target.querySelector?.('.bubble ha-icon')?.setAttribute('icon', 'mdi:timer-outline');
             }
             h.callService('assist_timer_ring', 'unpause', { timer_id: timerId });
@@ -141,6 +185,10 @@ custom_fields:
         .addrow { display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 13px;
           color: var(--primary-color); padding-left: 52px; }
         .addrow ha-icon { --mdc-icon-size: 18px; }
+        .row:focus-visible, .chip:focus-visible, .idle-main:focus-visible, .addrow:focus-visible {
+          outline: 2px solid var(--primary-color);
+          outline-offset: 2px;
+        }
         .note { display: flex; align-items: center; gap: 10px; color: var(--secondary-text-color); font-size: 15px; }
         .note ha-icon { --mdc-icon-size: 20px; opacity: 0.7; }
         .idle { display: flex; align-items: center; justify-content: space-between; gap: 10px 12px; flex-wrap: wrap;
@@ -157,11 +205,12 @@ custom_fields:
       </style>`;
       const note = (icon, msg) => `${css}<div class="wrap"><div class="note"><ha-icon icon="${icon}"></ha-icon>${esc(msg)}</div></div>`;
       const idle = () => `${css}<div class="idle">
-        <div class="idle-main" data-action="new">
+        <div class="idle-main" data-action="new" data-focus-key="new" role="button" tabindex="0" aria-label="${esc(T.set)}">
           <div class="ibubble"><ha-icon icon="mdi:timer-plus-outline"></ha-icon></div>
           <div class="ititle">${esc(T.set)}</div>
         </div>
-        <div class="chips">${[1, 5, 10].map((m) => `<div class="chip" data-action="quick" data-minutes="${m}">${m} min</div>`).join('')}</div>
+        <div class="chips">${[1, 5, 10].map((m) => `<div class="chip" data-action="quick" data-minutes="${m}" data-focus-key="quick-${m}"
+          role="button" tabindex="0" aria-label="${esc(T.quick.replace('{m}', String(m)))}">${m} min</div>`).join('')}</div>
       </div>`;
 
       const timers = entity?.attributes?.timers;
@@ -208,8 +257,11 @@ custom_fields:
         if (!device) return '';
         return hass?.areas?.[device.area_id]?.name || device.name_by_user || device.name || '';
       };
-      const row = (state, icon, title, sub, right, progress, action, id) => `
-        <div class="row" data-state="${state}" data-action="${action}"${id ? ` data-timer-id="${esc(id)}"` : ''}>
+      const row = (state, icon, title, sub, right, progress, action, id, key, announce = '') => `
+        <div class="row" data-state="${state}" data-action="${action}"${
+          id ? ` data-timer-id="${esc(id)}"` : ''} data-focus-key="${esc(key)}" role="button" tabindex="0"
+          aria-label="${buttonLabel(action, title, announce)}"${
+          announce ? ` data-announce="${esc(announce)}"` : ''}>
           <div class="bubble"><ha-icon icon="${icon}"></ha-icon></div>
           <div><div class="title">${esc(title)}</div><div class="sub">${esc(sub)}</div></div>
           <div class="time">${esc(right)}</div>
@@ -218,7 +270,8 @@ custom_fields:
 
       const doneRows = done.map((f) =>
         row('done', 'mdi:bell-ring', f.name || T.timer,
-            [place(f.device_id), T.dismiss].filter(Boolean).join(' · '), T.done, null, 'dismiss'));
+            [place(f.device_id), T.dismiss].filter(Boolean).join(' · '), T.done, null, 'dismiss', null, `done-${f.id}`,
+            [T.done, place(f.device_id)].filter(Boolean).join(' · ')));
       // Performance: pair timer reference with computed remaining seconds to avoid shallow copying all properties on every 1s tick
       const rows = timers
         .map((t) => ({ t, left: Math.max(0, Math.ceil(t.total_seconds_left - (t.is_active ? age : 0))) }))
@@ -231,8 +284,10 @@ custom_fields:
           const full = total(t);
           const progress = full > 0 ? Math.min(100, (left / full) * 100) : null;
           return row(state, t.is_active ? 'mdi:timer-outline' : 'mdi:timer-pause-outline', title, sub, clock(left), progress,
-            t.is_active ? 'pause' : 'unpause', t.id);
+            t.is_active ? 'pause' : 'unpause', t.id, `timer-${t.id}`,
+            [clock(left), place(t.device_id)].filter(Boolean).join(' · '));
         });
-      const addRow = `<div class="addrow" data-action="new"><ha-icon icon="mdi:plus"></ha-icon>${esc(T.newRow)}</div>`;
+      const addRow = `<div class="addrow" data-action="new" data-focus-key="new" role="button" tabindex="0"
+        aria-label="${esc(T.newRow)}"><ha-icon icon="mdi:plus"></ha-icon>${esc(T.newRow)}</div>`;
       return `${css}<div class="wrap">${[...doneRows, ...rows].join('')}${addRow}</div>`;
     ]]]

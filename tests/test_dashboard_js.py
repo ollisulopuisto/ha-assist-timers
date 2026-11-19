@@ -132,6 +132,13 @@ def test_names_are_html_escaped():
     assert "&lt;img" in out
 
 
+def test_accessible_names_are_escaped_once():
+    """A name is escaped once, not once for the label and again inside it."""
+    out = render(sensor([timer(name="Tom & Jerry", total_seconds_left=185)]), {"language": "en", **HASS})
+    assert 'aria-label="Pause Tom &amp; Jerry, 3:05 · Keittiö"' in out
+    assert "&amp;amp;" not in out
+
+
 def finished(*items):
     """sensor.assist_timers_finished; finished_at given as seconds ago."""
     return {"sensor.assist_timers_finished": {"state": str(len(items)), "attributes": {"finished": list(items)}}}
@@ -202,6 +209,73 @@ def test_rows_carry_their_click_action():
     assert 'data-action="new"' in render(sensor([]))
 
 
+def test_rows_are_buttons_with_accessible_names():
+    out = render(sensor([timer(name="pasta", is_active=False, total_seconds_left=185)]),
+                 {"language": "en", **HASS}, age_s=10)
+    assert 'role="button"' in out
+    assert 'tabindex="0"' in out
+    assert 'aria-label="Resume pasta, 3:05 · Keittiö"' in out
+    assert 'aria-label="New timer"' in out
+
+
+def test_done_row_is_a_stop_button():
+    states = {"sensor.assist_timers_finished": {"attributes": {"finished": [{"id": "d", "name": "eggs", "device_id": ""}]}}}
+    out = render(sensor([]), {"language": "en", **HASS}, states=states)
+    assert 'aria-label="Stop eggs, Done"' in out
+
+
+def test_idle_controls_are_buttons():
+    out = render(sensor([]), {"language": "en"})
+    assert 'aria-label="Set a timer"' in out
+    assert 'aria-label="Start 5 minute timer"' in out
+
+
+def test_rows_show_focus_outline():
+    out = render(sensor([timer(name="pasta", total_seconds_left=185)]), HASS)
+    assert ':focus-visible' in out
+    assert 'outline: 2px solid var(--primary-color)' in out
+
+
+def test_keyboard_enter_activates_a_row():
+    """Tabbing to a timer row and pressing Enter runs its action, like a tap."""
+    with open("cards/timer-list.yaml") as f:
+        card = yaml.safe_load(f)
+    code = card["custom_fields"]["timers"].strip().removeprefix("[[[").removesuffix("]]]")
+    entity = {"state": "1", "last_updated": "2026-10-02T06:00:00Z",
+              "attributes": {"timers": [timer(id="r", total_seconds_left=300)]}}
+    js = f"""
+    const calls = [];
+    const listeners = {{}};
+    const card = {{
+      shadowRoot: {{
+        addEventListener: (type, fn, capture) => {{
+          (listeners[type] ||= []).push(fn);
+        }},
+      }},
+      _hass: {{
+        language: 'en',
+        callService: (d, s, data) => calls.push(['service', d, s, data]),
+        services: {{}},
+      }},
+    }};
+    const fn = new Function('states', 'entity', 'user', 'hass', 'variables', 'html', 'helpers',
+                            "'use strict'; " + {json.dumps(code)});
+    fn.call(card, {{}}, {json.dumps(entity)}, {{}}, {{"language": "en"}}, {{}}, () => '', {{}});
+    const keydown = (key, action) => listeners.keydown[0]({{ key,
+      composedPath: () => [{{ dataset: {{ action, timerId: 'r' }}, style: {{ display: '' }} }}],
+      preventDefault: () => {{}} }});
+    keydown('Enter', 'pause');
+    keydown(' ', 'unpause');
+    keydown('Escape', 'pause');
+    process.stdout.write(JSON.stringify({{ calls }}));
+    """
+    res = subprocess.run(["node", "-e", js], capture_output=True, text=True, check=False)
+    assert res.returncode == 0, res.stderr
+    expected = [["service", "assist_timer_ring", "pause", {"timer_id": "r"}],
+                ["service", "assist_timer_ring", "unpause", {"timer_id": "r"}]]
+    assert json.loads(res.stdout)["calls"] == expected
+
+
 def test_english_ui():
     hass = {"language": "en", **HASS}
     states = {"sensor.assist_timers_finished": {"attributes": {"finished": [{"id": "d", "name": "", "device_id": "dev1"}]}}}
@@ -214,3 +288,24 @@ def test_english_ui():
 
 def test_unknown_language_falls_back_to_english():
     assert text(render(sensor([]), {"language": "sv"})) == "Set a timer 1 min 5 min 10 min"
+
+
+def test_same_named_timers_in_different_rooms_announce_differently():
+    """Two "pasta" timers in different rooms used to both announce "Pause pasta";
+    the countdown and room must reach the accessible name."""
+    hass = {"language": "en",
+            "devices": {"dev1": {"name": "Voice PE", "area_id": "kitchen"},
+                        "dev2": {"name": "Voice PE", "area_id": "living"}},
+            "areas": {"kitchen": {"name": "Kitchen"}, "living": {"name": "Living room"}}}
+    out = render(sensor([timer(id="a", name="pasta", device_id="dev1", total_seconds_left=175),
+                         timer(id="b", name="pasta", device_id="dev2", total_seconds_left=30)]), hass)
+    labels = re.findall(r'aria-label="([^"]*)"', out)
+    assert "Pause pasta, 2:55 · Kitchen" in labels
+    assert "Pause pasta, 0:30 · Living room" in labels
+
+
+def test_rows_keep_the_announcement_for_optimistic_updates():
+    """setAction rebuilds the optimistic label from data-announce, so the
+    countdown and room survive a pause/resume before the next render."""
+    out = render(sensor([timer(name="pasta", total_seconds_left=185)]), {"language": "en", **HASS})
+    assert 'data-announce="3:05 · Keittiö"' in out
